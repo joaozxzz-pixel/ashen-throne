@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>ASHEN THRONE — O Último Suspiro de Nerath</title>
+<style>
+*{box-sizing:border-box;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030406;color:#e1d8c8;font-family:Georgia,serif}
+#view{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;display:block}
+#ui{position:fixed;inset:0;pointer-events:none;text-shadow:2px 2px 3px #000}
+#hud{position:absolute;top:14px;left:16px;width:min(320px,55vw)}
+.lbl{font-size:11px;letter-spacing:2px;margin:5px 0 2px;color:#d8cbb8;display:flex;justify-content:space-between}
+.bar{height:9px;background:#1a1618;border:1px solid #5a4d48;margin-bottom:5px;position:relative}
+.fill{height:100%;width:100%;transition:width 0.15s ease-out}
+#hp{background:#a63b3b}
+#mad{background:#5c879c}
+#cor{background:#9e753b}
+#chargebar{height:4px;background:#ffaa00;width:0%;position:absolute;top:-6px;left:0;transition:width 0.05s}
+#right{position:absolute;right:17px;top:145px;text-align:right}
+#region{font-size:clamp(13px,2vw,18px);letter-spacing:1px;color:#b5534b;font-weight:bold}
+#stats{font-size:12px;line-height:1.7}
+
+#minimap-container{position:absolute;top:14px;right:17px;width:110px;height:110px;border:2px solid #78624d;border-radius:50%;overflow:hidden;background:#08090cd9;box-shadow:0 0 15px #000}
+#minimap{width:100%;height:100%;display:block}
+
+#cam-mode{position:absolute;top:14px;left:50%;transform:translateX(-50%);pointer-events:auto;background:#08090ce2;border:1px solid #78624d;color:#f2dfc4;padding:6px 12px;font:11px Georgia;cursor:pointer;border-radius:4px}
+#cam-mode:hover{background:#4a2e28}
+#quest{position:absolute;top:140px;left:17px;font-size:12px;line-height:1.5;max-width:260px;background:#08090cc2;padding:8px;border-left:2px solid #b5534b}
+#hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#050609e6;border:1px solid #665343;padding:8px 14px;font-size:11px;text-align:center;width:max-content;max-width:95vw}
+#toast{position:absolute;top:20%;left:50%;transform:translateX(-50%);padding:10px 18px;background:#08080fec;border:1px solid #75634c;opacity:0;transition:opacity .25s;text-align:center;max-width:85vw;pointer-events:none;font-size:13px}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse,#1a171fdf,#020305f8);z-index:99999;padding:18px}
+.card{max-width:720px;width:100%;max-height:90vh;overflow:auto;background:#0c0d12f2;border:1px solid #78624d;padding:clamp(22px,4vw,42px);box-shadow:0 0 90px #000;position:relative;z-index:100000}
+.kicker{font-size:11px;letter-spacing:4px;color:#b5534b;text-transform:uppercase}
+h1{font-weight:normal;font-size:clamp(32px,6vw,56px);line-height:.9;letter-spacing:3px;margin:14px 0;color:#eee2cd}
+h2{font-weight:normal;letter-spacing:2px}
+p{line-height:1.65;color:#c6bdae;font-size:14px}
+button{pointer-events:auto;cursor:pointer;font:14px Georgia,serif;color:#e4d6c0;background:#211c1a;border:1px solid #947456;padding:10px 16px;margin:4px;transition:background 0.2s}
+button:hover{background:#4a2e28}
+.dmg-popup{position:fixed;font:bold 14px Georgia;color:#ff4444;pointer-events:none;z-index:30;text-shadow:1px 1px #000;transition:transform 0.4s, opacity 0.4s}
+#vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 140px rgba(0,0,0,0.85);z-index:4}
+#mobile{position:fixed;display:none;z-index:5;bottom:15px;left:10px;right:10px;justify-content:space-between;pointer-events:none}
+#mobile button{pointer-events:auto;width:44px;height:44px;padding:0;margin:2px;background:#111c;border:1px solid #78624d;color:#fff;font-size:15px;border-radius:4px}
+@media(max-width:768px){#mobile{display:flex}#right{top:135px}}
+</style>
+</head>
+<body>
+<div id="vignette"></div>
+<canvas id="view"></canvas>
+<div id="crosshair" style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);font:20px monospace;color:#f2dfc4;pointer-events:none;opacity:.6">+</div>
+<div id="ui">
+ <button id="cam-mode">🎥 Câmera: 3ª Pessoa (V)</button>
+ <div id="minimap-container"><canvas id="minimap" width="110" height="110"></canvas></div>
+ <div id="hud">
+  <div class="bar"><div id="chargebar"></div></div>
+  <div class="lbl"><span>VIDA</span><span id="hptxt">100/100</span></div><div class="bar"><div class="fill" id="hp"></div></div>
+  <div class="lbl"><span>LOUCURA</span><span id="madtxt">8%</span></div><div class="bar"><div class="fill" id="mad" style="width:8%"></div></div>
+  <div class="lbl"><span>CORRUPÇÃO</span><span id="cortxt">0%</span></div><div class="bar"><div class="fill" id="cor" style="width:0%"></div></div>
+ </div>
+ <div id="right">
+  <div id="region">1. VALE DOS ENFORCADOS</div>
+  <div id="stats">Fragmentos: 0 · Almas: 0<br>A Fagulha da Morte</div>
+ </div>
+ <div id="quest">OBJETIVO<br><span id="quest-text">Desperte na lama e alcance o Portal ao norte.</span></div>
+ <div id="hint">W/S/A/D Mover · V Câmera · ESPAÇO Ataque · E Entrar no Portal</div>
+ <div id="toast"></div>
+</div>
+
+<div id="overlay">
+ <div class="card">
+  <div class="kicker">Dark Fantasy · Horror Cósmico</div>
+  <h1>ASHEN<br>THRONE</h1>
+  <h2>O ÚLTIMO SUSPIRO DE NERATH</h2>
+  <p>Os Sete Deuses morreram na Guerra das Máscaras Vazias, e com eles, a Morte feneceu. Sem guia, os mortos ergueram-se e o mundo apodreceu. Você é a <strong>Fagulha</strong>, o último fragmento de alma do Deus da Morte, desperto na lama para atravessar os reinos de decadência rumo ao Trono das Cinzas.</p>
+  <button id="start">DESPERTAR NO ABISMO</button>
+ </div>
+</div>
+
+<div id="mobile">
+ <div style="display:grid;grid-template-columns:repeat(3,44px);gap:2px">
+  <span></span><button data-k="w">▲</button><span></span>
+  <button data-k="a">◀</button><button data-k="s">▼</button><button data-k="d">▶</button>
+ </div>
+ <div style="display:flex;flex-direction:column;gap:2px">
+  <div style="display:flex;gap:2px">
+   <button data-k="v">👁️</button>
+   <button data-k="e">E</button>
+  </div>
+  <div style="display:flex;gap:2px">
+   <button data-k="Shift">↗</button>
+   <button data-k=" ">⚔</button>
+  </div>
+ </div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js';
+
+const canvas = document.querySelector('#view');
+const renderer = new THREE.WebGLRenderer({canvas, antialias: true, powerPreference: 'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#030406');
+const fogExp = new THREE.FogExp2('#06080e', .03);
+scene.fog = fogExp;
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, .1, 300);
+camera.position.set(0, 5, 9);
+
+scene.add(new THREE.HemisphereLight(0x4a526e, 0x050406, 1.4));
+const moon = new THREE.DirectionalLight(0x8298c4, 2.0);
+moon.position.set(-25, 40, 20);
+moon.castShadow = true;
+scene.add(moon);
+
+// Web Audio API Procedural SFX
+let audioCtx = null;
+function initAudio() {
+  try {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) audioCtx = new AudioContextClass();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  } catch(e){}
+}
+
+function playSFX(type) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    if (type === 'sword') {
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(320, now); osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+      gain.gain.setValueAtTime(0.12, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.start(now); osc.stop(now + 0.16);
+    } else if (type === 'hit') {
+      osc.type = 'square'; osc.frequency.setValueAtTime(110, now); osc.frequency.exponentialRampToValueAtTime(25, now + 0.25);
+      gain.gain.setValueAtTime(0.25, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.start(now); osc.stop(now + 0.26);
+    } else if (type === 'portal') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(180, now); osc.frequency.exponentialRampToValueAtTime(550, now + 0.9);
+      gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+      osc.start(now); osc.stop(now + 0.91);
+    } else if (type === 'step') {
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(60, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.08);
+      gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.start(now); osc.stop(now + 0.09);
+    }
+  } catch(e){}
+}
+
+// Chão Texturizado
+function createWornStoneTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#121115'; ctx.fillRect(0,0,512,512);
+  for(let i=0; i<1000; i++){
+    ctx.fillStyle = Math.random() > .5 ? '#1d1b22' : '#0a090d';
+    ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, Math.random()*15+2, 0, Math.PI*2); ctx.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+const stoneTex = createWornStoneTexture(); stoneTex.wrapS = stoneTex.wrapT = THREE.RepeatWrapping; stoneTex.repeat.set(35, 35);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(350, 350), new THREE.MeshStandardMaterial({map: stoneTex, roughness: 0.85}));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true;
+scene.add(ground);
+
+const mat = (color, roughness=0.8, metalness=0.1) => new THREE.MeshStandardMaterial({color, roughness, metalness});
+const clothMat = mat('#2b2528'), metalMat = mat('#706b65', 0.3, 0.8), chainMat = mat('#4d5259', 0.5, 0.6), legMat = mat('#1c191a', 0.8);
+
+function cube(parent, w, h, d, material, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true;
+  parent.add(m); return m;
+}
+
+// Protagonista com Pernas Articuladas
+const player = new THREE.Group(); scene.add(player);
+const playerMeshGroup = new THREE.Group(); player.add(playerMeshGroup);
+
+cube(playerMeshGroup, .85, 1.1, .5, chainMat, 0, 1.15, 0);
+cube(playerMeshGroup, .58, .58, .54, clothMat, 0, 1.9, 0);
+cube(playerMeshGroup, .22, .18, .15, mat('#3b2b20'), -.38, .72, 0);
+const sword = cube(playerMeshGroup, .11, 1.3, .14, metalMat, .72, 1.15, -.1);
+sword.rotation.z = -.35;
+
+const leftLegGroup = new THREE.Group();
+leftLegGroup.position.set(-0.22, 0.6, 0);
+playerMeshGroup.add(leftLegGroup);
+cube(leftLegGroup, 0.24, 0.65, 0.28, legMat, 0, -0.325, 0);
+
+const rightLegGroup = new THREE.Group();
+rightLegGroup.position.set(0.22, 0.6, 0);
+playerMeshGroup.add(rightLegGroup);
+cube(rightLegGroup, 0.24, 0.65, 0.28, legMat, 0, -0.325, 0);
+
+const p = {
+  x:0, z:15, hp:100, maxHp:100, mad:8, cor:0, souls:0, frags:0, face:Math.PI,
+  attack:0, dodge:0, invuln:0, stepTimer:0, isMoving:false
+};
+player.position.set(p.x, 0, p.z);
+
+// Controle de Perspectiva
+let cameraMode = 0;
+let cameraZoom = 9.0;
+const modeNames = ['3ª Pessoa', '1ª Pessoa', 'Top-Down'];
+
+function cycleCameraMode() {
+  cameraMode = (cameraMode + 1) % 3;
+  document.querySelector('#cam-mode').textContent = `🎥 Câmera: ${modeNames[cameraMode]} (V)`;
+  playerMeshGroup.visible = (cameraMode !== 1);
+  toast(`Visão: ${modeNames[cameraMode]}`);
+}
+document.querySelector('#cam-mode').onclick = cycleCameraMode;
+
+addEventListener('wheel', e => {
+  if(cameraMode === 0){
+    cameraZoom = Math.max(4.0, Math.min(18.0, cameraZoom + e.deltaY * 0.01));
+  }
+});
+
+// Montanhas de Perímetro com Colisão Física
+const worldGroup = new THREE.Group(); scene.add(worldGroup);
+const mountainColliders = [];
+
+function createMountains() {
+  const mountainMat = mat('#12151c', 0.9, 0.1);
+  for(let i=0; i<36; i++){
+    let angle = (i / 36) * Math.PI * 2;
+    let dist = 125 + Math.random() * 15;
+    let mx = Math.cos(angle) * dist, mz = Math.sin(angle) * dist;
+    let mw = 22 + Math.random() * 15, mh = 30 + Math.random() * 45;
+    const mountain = new THREE.Mesh(new THREE.ConeGeometry(mw, mh, 4), mountainMat);
+    mountain.position.set(mx, mh / 2 - 2, mz);
+    mountain.rotation.y = Math.random() * Math.PI;
+    worldGroup.add(mountain);
+
+    mountainColliders.push({ x: mx, z: mz, radius: mw * 0.75 });
+  }
+}
+createMountains();
+
+// Portal do Abismo & Regiões
+const portalGroup = new THREE.Group(); portalGroup.position.set(0, 0, -85); scene.add(portalGroup);
+const portalMesh = new THREE.Mesh(new THREE.TorusGeometry(3.0, .35, 16, 32), new THREE.MeshBasicMaterial({color: 0x73c2fb}));
+portalMesh.position.y = 3; portalGroup.add(portalMesh);
+
+const regions = [
+  { name: '1. VALE DOS ENFORCADOS', bgColor: '#030406', fogColor: '#06080e', quest: 'Derrote os espectros e alcance o Portal ao norte.' },
+  { name: '2. REINO AFOGADO DE NYMOR', bgColor: '#020b12', fogColor: '#041826', quest: 'Navegue pelas ruínas submersas.' },
+  { name: '3. CATEDRAL DA CARNE', bgColor: '#120305', fogColor: '#24060a', quest: 'Atravesse o santuário rumo ao Trono das Cinzas.' }
+];
+let currentRegionIndex = 0;
+
+function loadRegion(index) {
+  currentRegionIndex = index;
+  const reg = regions[index];
+  scene.background.set(reg.bgColor);
+  fogExp.color.set(reg.fogColor);
+  document.querySelector('#region').textContent = reg.name;
+  document.querySelector('#quest-text').textContent = reg.quest;
+  toast(`Reino atual: ${reg.name}`);
+  playSFX('portal');
+  p.x = 0; p.z = 15;
+}
+
+// Inimigos com IA e Dano Ativo
+const enemies = [];
+function makeEnemy(x, z, big=false) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  let hp = big ? 450 : 60;
+  if(big){
+    cube(g, 1.8, 2.6, 1.2, mat('#282226'), 0, 1.3, 0);
+    cube(g, 1.0, 0.9, 0.9, mat('#1c1719'), 0, 2.7, 0);
+  } else {
+    cube(g, 0.6, 1.6, 0.4, mat('#1a212b'), 0, 0.9, 0);
+    cube(g, 0.4, 0.4, 0.4, mat('#10141a'), 0, 1.8, 0);
+  }
+  const e = {g, x, z, hp, maxHp:hp, big, dead:false, attackCooldown:0, stun:0, speed: big ? 1.8 : 2.8};
+  enemies.push(e); return e;
+}
+
+for(let i=0; i<18; i++){
+  let a = Math.random()*Math.PI*2, d = 18+Math.random()*60;
+  makeEnemy(Math.cos(a)*d, Math.sin(a)*d, false);
+}
+
+const particles = [];
+function burst(x, z, color='#d95b4e', n=16) {
+  for(let i=0; i<n; i++){
+    let m = new THREE.Mesh(new THREE.BoxGeometry(.14, .14, .14), new THREE.MeshBasicMaterial({color}));
+    m.position.set(x, .8+Math.random()*2, z); scene.add(m);
+    particles.push({m, v: new THREE.Vector3((Math.random()-.5)*7, Math.random()*5, (Math.random()-.5)*7), life:.6+Math.random()*.6});
+  }
+}
+
+function showDmg(dmg, x, z, color='#ff4444') {
+  const el = document.createElement('div'); el.className = 'dmg-popup'; 
+  el.textContent = '-' + dmg; el.style.color = color;
+  document.body.appendChild(el);
+  const vector = new THREE.Vector3(x, 2, z).project(camera);
+  el.style.left = ((vector.x * .5 + .5) * innerWidth) + 'px';
+  el.style.top = ((-(vector.y * .5) + .5) * innerHeight) + 'px';
+  setTimeout(() => { el.style.transform = 'translateY(-30px)'; el.style.opacity = '0'; }, 50);
+  setTimeout(() => el.remove(), 500);
+}
+
+const minimapCtx = document.querySelector('#minimap').getContext('2d');
+function drawMinimap() {
+  const cx = 55, cy = 55, scale = 1.1;
+  minimapCtx.clearRect(0, 0, 110, 110);
+  minimapCtx.fillStyle = '#0c0d12'; minimapCtx.beginPath(); minimapCtx.arc(cx, cy, 55, 0, Math.PI*2); minimapCtx.fill();
+
+  const portalRelX = (0 - p.x) * scale, portalRelZ = (-85 - p.z) * scale;
+  if(Math.hypot(portalRelX, portalRelZ) < 50){
+    minimapCtx.fillStyle = '#ab47bc';
+    minimapCtx.beginPath(); minimapCtx.arc(cx + portalRelX, cy + portalRelZ, 4.5, 0, Math.PI*2); minimapCtx.fill();
+  }
+
+  for(const e of enemies){
+    if(e.dead) continue;
+    const relX = (e.x - p.x) * scale, relZ = (e.z - p.z) * scale;
+    if(Math.hypot(relX, relZ) < 50){
+      minimapCtx.fillStyle = e.big ? '#ff2200' : '#d95b4e';
+      minimapCtx.beginPath();
+      minimapCtx.arc(cx + relX, cy + relZ, e.big ? 4.5 : 2.5, 0, Math.PI*2);
+      minimapCtx.fill();
+    }
+  }
+
+  minimapCtx.save();
+  minimapCtx.translate(cx, cy); minimapCtx.rotate(p.face + Math.PI);
+  minimapCtx.fillStyle = '#ffaa00'; minimapCtx.beginPath(); minimapCtx.moveTo(0, -7); minimapCtx.lineTo(4, 5); minimapCtx.lineTo(0, 3); minimapCtx.lineTo(-4, 5); minimapCtx.fill();
+  minimapCtx.restore();
+}
+
+let started = false, paused = true, camYaw = 0, camPitch = .2, shakeTime = 0, last = performance.now();
+const keys = {};
+
+function toast(t) {
+  const el = document.querySelector('#toast'); el.textContent = t; el.style.opacity = 1;
+  setTimeout(() => el.style.opacity = 0, 2600);
+}
+
+function executeAttack() {
+  if(paused || p.attack > 0) return;
+  p.attack = 0.35;
+  sword.rotation.x = -1.2;
+  playSFX('sword');
+  const forwardX = -Math.sin(p.face), forwardZ = -Math.cos(p.face);
+
+  for(const e of enemies){
+    if(e.dead) continue;
+    const dx = e.x - p.x, dz = e.z - p.z, dist = Math.hypot(dx, dz);
+    if(dist < 4.5 && ((dx/dist)*forwardX + (dz/dist)*forwardZ) > 0.1){
+      e.hp -= 50; e.stun = 0.5;
+      showDmg(50, e.x, e.z, '#ff9980');
+      burst(e.x, e.z, '#ff9980', 16);
+      if(e.hp <= 0){ 
+        e.dead = true; e.g.visible = false; 
+        p.souls += e.big ? 150 : 15; p.frags++;
+        toast(e.big ? 'Guardião destruído!' : 'Essência coletada! +15 almas');
+      }
+    }
+  }
+}
+
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase(); keys[k] = true;
+  if(k === 'v') cycleCameraMode();
+  if(k === 'e') {
+    if(Math.hypot(p.x - 0, p.z - (-85)) < 6){
+      loadRegion((currentRegionIndex + 1) % regions.length);
+    } else {
+      toast('Aproxime-se do Portal do Abismo ao norte.');
+    }
+  }
+});
+
+addEventListener('keyup', e => {
+  const k = e.key.toLowerCase(); keys[k] = false;
+  if(k === ' ' && !paused) executeAttack();
+});
+
+canvas.addEventListener('click', () => { 
+  if(started && !paused) {
+    try { canvas.requestPointerLock?.(); } catch(e){}
+  }
+});
+
+addEventListener('mousemove', e => {
+  if(document.pointerLockElement === canvas && !paused){
+    camYaw -= e.movementX * .003;
+    camPitch = Math.max(-.1, Math.min(.6, camPitch + e.movementY * .002));
+  }
+});
+
+// BOTAO DE INICIO BLINDADO (Garante o funcionamento sem falhas)
+const startBtn = document.querySelector('#start');
+const overlayEl = document.querySelector('#overlay');
+
+function startGame(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  if (overlayEl) {
+    overlayEl.style.display = 'none';
+    overlayEl.remove(); // Remove o elemento de vez para liberar os cliques da tela
+  }
+  
+  started = true;
+  paused = false;
+  
+  initAudio();
+  toast('A Fagulha despertou na lama.');
+  
+  try { 
+    if (canvas && canvas.requestPointerLock) {
+      canvas.requestPointerLock(); 
+    }
+  } catch(err){}
+}
+
+startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('touchend', startGame);
+
+document.querySelectorAll('[data-k]').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if(k === 'v') { cycleCameraMode(); return; }
+    if(k === 'e') {
+      if(Math.hypot(p.x - 0, p.z - (-85)) < 6){
+        loadRegion((currentRegionIndex + 1) % regions.length);
+      } else {
+        toast('Aproxime-se do Portal do Abismo ao norte.');
+      }
+      return;
+    }
+    keys[k.toLowerCase()] = true;
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => keys[k.toLowerCase()] = false));
+});
+
+function update(dt) {
+  if(paused) return;
+  dt = Math.min(dt, .04);
+
+  p.attack = Math.max(0, p.attack - dt);
+  shakeTime = Math.max(0, shakeTime - dt);
+  portalMesh.rotation.y += dt * 1.5;
+
+  let forward = 0, side = 0;
+  if(keys.w) forward += 1; if(keys.s) forward -= 1;
+  if(keys.a) side -= 1; if(keys.d) side += 1;
+
+  p.isMoving = (forward !== 0 || side !== 0);
+
+  if(p.isMoving){
+    let l = Math.hypot(forward, side); forward /= l; side /= l;
+    const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
+    const vx = (-sin * forward) + (cos * side);
+    const vz = (-cos * forward) + (-sin * side);
+    
+    let newX = p.x + vx * 7.2 * dt;
+    let newZ = p.z + vz * 7.2 * dt;
+
+    let canMove = true;
+    for(const m of mountainColliders){
+      if(Math.hypot(newX - m.x, newZ - m.z) < m.radius){
+        canMove = false;
+        break;
+      }
+    }
+
+    if(canMove){
+      p.x = newX;
+      p.z = newZ;
+    }
+
+    p.face = Math.atan2(-vx, -vz);
+
+    p.stepTimer += dt;
+    if(p.stepTimer > 0.4) { playSFX('step'); p.stepTimer = 0; }
+
+    const walkCycle = performance.now() * 0.015;
+    leftLegGroup.rotation.x = Math.sin(walkCycle) * 0.6;
+    rightLegGroup.rotation.x = -Math.sin(walkCycle) * 0.6;
+  } else {
+    leftLegGroup.rotation.x = THREE.MathUtils.lerp(leftLegGroup.rotation.x, 0, dt * 10);
+    rightLegGroup.rotation.x = THREE.MathUtils.lerp(rightLegGroup.rotation.x, 0, dt * 10);
+  }
+
+  player.position.set(p.x, Math.sin(performance.now()*.01)*(p.isMoving ? 0.08 : 0.02), p.z);
+  player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, p.face, dt * 15);
+
+  for(const e of enemies){
+    if(e.dead) continue;
+    const dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz);
+    
+    if(d < 35 && d > 1.5 && e.stun <= 0){
+      e.x += (dx/d) * e.speed * dt;
+      e.z += (dz/d) * e.speed * dt;
+      e.g.position.set(e.x, 0, e.z);
+      e.g.rotation.y = Math.atan2(dx, dz);
+    }
+    
+    e.stun = Math.max(0, e.stun - dt);
+    e.attackCooldown = Math.max(0, e.attackCooldown - dt);
+
+    if(d <= 2.0 && e.attackCooldown <= 0){
+      e.attackCooldown = 1.2;
+      const dmg = e.big ? 35 : 15;
+      p.hp = Math.max(0, p.hp - dmg);
+      
+      playSFX('hit');
+      showDmg(dmg, p.x, p.z, '#ff2222');
+      burst(p.x, p.z, '#a63b3b', 12);
+      shakeTime = 0.3;
+      toast(`Você sofreu ${dmg} de dano cósmico!`);
+
+      if(p.hp <= 0){
+        p.hp = p.maxHp;
+        p.x = 0; p.z = 15;
+        toast('A Morte falhou. Você renasce na Fagulha.');
+      }
+    }
+  }
+
+  for(let i = particles.length - 1; i >= 0; i--){
+    const a = particles[i];
+    a.life -= dt;
+    a.m.position.addScaledVector(a.v, dt);
+    if(a.life <= 0){
+      scene.remove(a.m);
+      a.m.geometry.dispose();
+      a.m.material.dispose();
+      particles.splice(i, 1);
+    }
+  }
+
+  let camShakeX = (Math.random()-.5) * (shakeTime > 0 ? 0.35 : 0);
+  let camShakeY = (Math.random()-.5) * (shakeTime > 0 ? 0.35 : 0);
+
+  if(cameraMode === 1) {
+    camera.position.set(p.x + camShakeX, 1.9 + camShakeY, p.z);
+    const lookTarget = new THREE.Vector3(
+      p.x - Math.sin(camYaw) * 10,
+      1.9 - camPitch * 10,
+      p.z - Math.cos(camYaw) * 10
+    );
+    camera.lookAt(lookTarget);
+  } else if(cameraMode === 2) {
+    const target = new THREE.Vector3(p.x + camShakeX, 22.0 + camShakeY, p.z + 2.0);
+    camera.position.lerp(target, 0.2);
+    camera.lookAt(p.x, 0, p.z);
+  } else {
+    const target = new THREE.Vector3(p.x + Math.sin(camYaw)*cameraZoom + camShakeX, 3.5 + camPitch*6 + camShakeY, p.z + Math.cos(camYaw)*cameraZoom);
+    camera.position.lerp(target, 0.15);
+    camera.lookAt(p.x, 1.2, p.z);
+  }
+
+  drawMinimap();
+  document.querySelector('#hp').style.width = (p.hp/p.maxHp*100) + '%';
+  document.querySelector('#hptxt').textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
+  document.querySelector('#stats').innerHTML = `Fragmentos: ${p.frags} · Almas: ${p.souls}<br>A Fagulha da Morte`;
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = (now - last) / 1000; last = now;
+  update(dt); renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
